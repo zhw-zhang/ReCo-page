@@ -1,0 +1,2265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Region-Constraint In-Context Generation for Instructional Video Editing</title>
+  
+  <!-- Critical CSS -->
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+
+  <!-- ReCo video wall styles -->
+  <style>
+    /* 整个视频区域：居中 + 自适应 */
+    .reco-wide-container {
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 2.5rem;
+    }
+
+    /* 区块上下留一点空间 */
+    .reco-video-section {
+      padding-top: 3rem;
+      padding-bottom: 3rem;
+    }
+
+    /* 视频墙：宽屏时 2 组/行，窄屏自动变 1 组/行 */
+    .reco-video-wall {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(540px, 1fr));
+      column-gap: 1.8rem;
+      row-gap: 3rem;
+    }
+
+    /* 每一组：Input + Result */
+    .reco-video-pair {
+      display: flex;
+      gap: 0.9rem;
+    }
+
+    /* 视频卡片本身 */
+    .reco-video-item {
+      position: relative;
+      flex: 1 1 50%;
+      border-radius: 0.9rem;
+      overflow: hidden;
+      background: #111;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+    }
+
+    /* 视频：占满宽度，保持比例，自适应 */
+    .reco-video-item video {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: inherit;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    /* 悬浮放大效果 */
+    .reco-video-item video:hover {
+      transform: scale(1.25);
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.35);
+    }
+
+    /* 左上角的小标签（常显版本） */
+    .reco-label {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(15, 23, 42, 0.82);
+      color: #f9fafb;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* 每组下面的 edited prompt 文本 */
+    .reco-prompt {
+      margin-top: 0.75rem;
+      font-size: 0.95rem;
+      color: #4b5563;
+    }
+
+    .reco-prompt strong {
+      color: #111827;
+    }
+
+    /* 中等及以下宽度：稍微缩进一点边距 */
+    @media (max-width: 1024px) {
+      .reco-wide-container {
+        padding: 0 1.5rem;
+      }
+    }
+
+    /* 手机宽度：一行只放一组，Input/Result 垂直排 */
+    @media (max-width: 768px) {
+      .reco-video-wall {
+        grid-template-columns: 1fr;
+      }
+      .reco-video-pair {
+        flex-direction: column;
+      }
+    }
+
+    /* 顶部跳转按钮样式 */
+    /* .hero-quick-links {
+      margin-top: 1.25rem;
+    } */
+  /* 顶部跳转按钮样式 */
+    .hero-quick-links {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;   /* 垂直方向：一行一行排 */
+      align-items: center;
+      gap: 0.75rem;             /* 行之间的间距 */
+    }
+
+    /* 每一行的按钮容器 */
+    .hero-quick-links-row {
+      display: flex;
+      justify-content: center;
+      gap: 0.9rem;              /* 同一行按钮之间的间距 */
+      flex-wrap: wrap;          /* 屏幕窄时自动换行 */
+    }
+
+    .hero-quick-links .button {
+      border-radius: 999px;
+      font-weight: 500;
+      padding: 0 1.2rem;
+      box-shadow: none;              /* 去掉“渐变”的光晕 */
+    }
+
+    /* 如果你想要淡淡的实心底色 */
+    .hero-quick-links .button.is-light.is-link {
+      background: #eef3ff;           /* 纯色，不是渐变 */
+      color: #1d4ed8;
+      border-color: transparent;
+    }
+
+
+    .hero-quick-links .button.is-light.is-link:hover {
+      background: #e0e7ff;
+      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.26);
+    }
+
+
+    /* 每个 example 的包裹容器 */
+    .reco-example { }
+
+    /* 默认隐藏额外的 example（7~12） */
+    .reco-example.extra {
+      display: none;
+    }
+
+    /* 对应的 section 展开时，显示额外 example */
+    .reco-video-section.is-expanded .reco-example.extra {
+      display: block;
+    }
+
+    /* 展开/收起按钮容器 */
+    /* .reco-toggle-wrap {
+      margin-top: 1.5rem;
+      text-align: center;
+    } */
+
+    .reco-toggle-wrap {
+      margin-top: 2rem;
+      text-align: center;
+    }
+
+    /* 更醒目的 Show more / Show fewer 按钮 */
+    .reco-toggle-button {
+      border-radius: 999px;
+      padding: 0.55rem 1.8rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+
+      background: linear-gradient(90deg, #2563eb, #7c3aed);
+      color: #ffffff;
+      border: none;
+
+      box-shadow: 0 8px 20px rgba(79, 70, 229, 0.35);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+
+    .reco-toggle-button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 26px rgba(79, 70, 229, 0.45);
+      filter: brightness(1.05);
+    }
+
+    .reco-toggle-button:active {
+      transform: translateY(0);
+      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.35);
+    }
+
+
+    /* 结果视频上的 prompt 覆盖层：默认隐藏，hover 时显示 */
+    .reco-prompt-overlay {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      color: #f9fafb;
+
+      /* 浅灰黑色 + 上方渐隐 */
+      background: linear-gradient(
+        to top,
+        rgba(17, 24, 39, 0.80),  /* 近似 #111827，稍透明 */
+        rgba(17, 24, 39, 0.40),
+        rgba(17, 24, 39, 0.00)
+      );
+
+      border-radius: 0 0 0.9rem 0.9rem;
+
+      opacity: 0;
+      transform: translateY(4px);
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+
+      /* ★ 关键：让 overlay 在视频上面 ★ */
+      z-index: 3;
+    }
+
+    /* hover 时：底色更深一点 */
+    .reco-video-item:hover .reco-prompt-overlay {
+      opacity: 1;
+      transform: translateY(0);
+      background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.6),
+        rgba(0, 0, 0, 0.6),
+        rgba(0, 0, 0, 0.6)
+      );
+    }
+
+/* ===== Comparison section layout ===== */
+
+.comparison-section {
+  background: #f9fafb;      /* 可选：淡灰底，看起来更像一块单独区域 */
+}
+
+/* 整个表格容器：上下间隔稍微大一点 */
+.comparison-table {
+  margin-top: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* —— 三行五列：左边任务名 + 右边 5 个方法 —— */
+.comparison-header-row-5,
+.comparison-grid-row-5 {
+  display: grid;
+  /* 左边 120px 给“Replacement / Addition / Stylization”，
+     右边 5 列视频，与你现在的视频宽度保持一致 */
+  grid-template-columns: 120px repeat(5, minmax(0, 1fr));
+  column-gap: 1.5rem;
+  align-items: center;
+}
+
+/* —— 最后一行四列：左边任务名 + 右边 4 个方法 —— */
+.comparison-header-row-4,
+.comparison-grid-row-4 {
+  display: grid;
+  /* 同样左边 120px，右边 4 列视频，宽度和上面视频一样，只是整体略窄一点 */
+  grid-template-columns: 120px repeat(4, minmax(0, 1fr));
+  column-gap: 1.5rem;
+  align-items: center;
+}
+
+/* 顶部“Input / InsViE / Ditto ...”的文字样式 */
+.comparison-method {
+  text-align: center;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+/* 左侧“Replacement / Addition / Stylization / Removal”一列 */
+.comparison-task {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4b5563;
+  text-align: right;
+  padding-right: 0.75rem;
+}
+
+/* 移动端简单降级：任务名在上，视频占整行 */
+@media (max-width: 960px) {
+  .comparison-header-row-5,
+  .comparison-grid-row-5,
+  .comparison-header-row-4,
+  .comparison-grid-row-4 {
+    grid-template-columns: 1fr;
+    row-gap: 0.75rem;
+  }
+
+  .comparison-task {
+    text-align: left;
+    padding-right: 0;
+  }
+}
+
+/* =========================================
+       自定义修改：去掉作者和顶部链接的蓝色
+       ========================================= */
+    
+    /* 1. 去掉作者名字的蓝色 */
+    .publication-authors a {
+      color: #363636 !important; /* 改为深灰黑色，与普通文本一致 */
+      text-decoration: none !important; /* 去掉下划线 */
+      transition: color 0.3s ease;
+    }
+    /* 鼠标悬停时稍微变浅一点，提示它是可点击的（可选） */
+    .publication-authors a:hover {
+      color: #7a7a7a !important; 
+    }
+
+/* =========================================
+       更新：调整间距 + 增强按钮交互效果
+       ========================================= */
+
+    /* 1. 减小 ArXiv 等链接与上方机构的距离 */
+    .publication-links {
+      margin-top: -1.2rem !important; /* 使用负边距向上拉近距离，数值可按需调整 */
+      padding-top: 0 !important;
+    }
+    
+    /* 如果上一层容器有 padding，也可以试着强制取消 */
+    .column.has-text-centered > .publication-links {
+       margin-bottom: 0.5rem; /* 保持下方与 Quick links 的距离 */
+    }
+
+
+    /* 2. 增强链接按钮的交互效果 (Hover Effect) */
+    
+    /* 默认状态：保持之前的去蓝色设置 */
+    .publication-links .link-block a {
+      color: #363636 !important;
+      transition: all 0.2s ease-in-out; /* 添加平滑过渡动画 */
+      border-radius: 24px; /* 确保圆角（如果之前没有的话） */
+      padding: 6px 16px;   /* 稍微增加一点内边距让按钮看起来饱满 */
+    }
+
+    /* 确保图标默认也是黑色 */
+    .publication-links .link-block a .icon i, 
+    .publication-links .link-block a .icon svg {
+      color: #363636 !important;
+      transition: color 0.2s ease-in-out;
+    }
+
+    /* ★ 鼠标悬停时的明显效果 ★ */
+    .publication-links .link-block a:hover {
+      background-color: #363636 !important; /* 背景变深黑灰色 */
+      color: #ffffff !important;            /* 文字变白 */
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* 添加阴影 */
+      transform: translateY(-2px);          /* 按钮轻微上浮 */
+    }
+
+    /* 悬停时，图标也变白 */
+    .publication-links .link-block a:hover .icon i, 
+    .publication-links .link-block a:hover .icon svg {
+      color: #ffffff !important;
+    }
+
+  </style>
+
+  <!-- Non-critical CSS - Load asynchronously -->
+  <link rel="preload" href="static/css/bulma-carousel.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/bulma-slider.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/fontawesome.all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/bulma-carousel.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/bulma-slider.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="preload" href="static/css/fontawesome.all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Defer non-critical JavaScript -->
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+  <script defer src="static/js/bulma-carousel.min.js"></script>
+  <script defer src="static/js/bulma-slider.min.js"></script>
+  <script defer src="static/js/index.js"></script>
+  
+  <!-- Structured Data for Academic Papers -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ScholarlyArticle",
+    "headline": "PAPER_TITLE",
+    "description": "BRIEF_DESCRIPTION_OF_YOUR_RESEARCH_CONTRIBUTION_AND_FINDINGS",
+    "author": [
+      {
+        "@type": "Person",
+        "name": "FIRST_AUTHOR_NAME",
+        "affiliation": {
+          "@type": "Organization",
+          "name": "INSTITUTION_NAME"
+        }
+      },
+      {
+        "@type": "Person",
+        "name": "SECOND_AUTHOR_NAME",
+        "affiliation": {
+          "@type": "Organization",
+          "name": "INSTITUTION_NAME"
+        }
+      }
+    ],
+    "datePublished": "2024-01-01",
+    "publisher": {
+      "@type": "Organization",
+      "name": "CONFERENCE_OR_JOURNAL_NAME"
+    },
+    "url": "https://YOUR_DOMAIN.com/YOUR_PROJECT_PAGE",
+    "image": "https://YOUR_DOMAIN.com/static/images/social_preview.png",
+    "keywords": ["KEYWORD1", "KEYWORD2", "KEYWORD3", "machine learning", "computer vision"],
+    "abstract": "FULL_ABSTRACT_TEXT_HERE",
+    "citation": "BIBTEX_CITATION_HERE",
+    "isAccessibleForFree": true,
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "mainEntity": {
+      "@type": "WebPage",
+      "@id": "https://YOUR_DOMAIN.com/YOUR_PROJECT_PAGE"
+    },
+    "about": [
+      {
+        "@type": "Thing",
+        "name": "RESEARCH_AREA_1"
+      },
+      {
+        "@type": "Thing",
+        "name": "RESEARCH_AREA_2"
+      }
+    ]
+  }
+  </script>
+  
+  <!-- Website/Organization Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "INSTITUTION_OR_LAB_NAME",
+    "url": "https://YOUR_INSTITUTION_WEBSITE.com",
+    "sameAs": [
+      "https://twitter.com/YOUR_TWITTER_HANDLE",
+      "https://github.com/YOUR_GITHUB_USERNAME"
+    ]
+  }
+  </script>
+</head>
+<body>
+
+  <!-- Scroll to Top Button -->
+  <button class="scroll-to-top" onclick="scrollToTop()" title="Scroll to top" aria-label="Scroll to top">
+    <i class="fas fa-chevron-up"></i>
+  </button>
+
+  <main id="main-content">
+    <!-- 顶部 hero -->
+    <section class="hero is-small">
+      <div class="hero-body">
+        <div class="container is-max-desktop">
+          <div class="columns is-centered">
+            <div class="column has-text-centered">
+              <h1 class="title is-2 publication-title">
+                Region-Constraint In-Context Generation for Instructional Video Editing
+              </h1>
+
+            <div class="is-size-5 publication-authors" style="margin-bottom: 0.25rem;">
+              <!-- Paper authors -->
+              <span class="author-block">
+                <a href="https://scholar.google.com.hk/citations?user=4mvNc8UAAAAJ&hl=zh-CN" target="_blank">Zhongwei Zhang</a><sup>1</sup></span>
+                <span class="author-block">
+                  <a href="https://scholar.google.com.hk/citations?user=tWdQ7YIAAAAJ&hl=zh-CN&oi=ao" target="_blank">Fuchen Long</a><sup>2</sup></span>
+                <span class="author-block">
+                  <a href="https://scholar.google.com/citations?hl=zh-CN&user=FSqALeAAAAAJ" target="_blank">Wei Li</a><sup>2</sup></span>
+                  <span class="author-block">
+                  <a href="http://zhaofanqiu.deepfun.club/" target="_blank">Zhaofan Qiu</a><sup>2</sup></span>
+                <span class="author-block">
+                  <a href="https://faculty.ustc.edu.cn/liuwu" target="_blank">Wu Liu</a><sup>1</sup></span>
+                <span class="author-block">
+                  <a href="http://tingyao.deepfun.club/" target="_blank">Ting Yao</a><sup>2</sup></span>
+                <span class="author-block">
+                  <a href="https://taomei.me/" target="_blank">Tao Mei</a><sup>2</sup></span>
+            </div>
+              <div class="is-size-5 publication-authors affiliations" style="margin-top: 0.25rem;">
+                <span class="author-block">
+                <sup>1</sup> University of Science and Technology of China &nbsp;&nbsp;&nbsp;
+                <sup>2</sup> HiDream.ai Inc &nbsp;&nbsp;&nbsp;
+                <!-- <span class="eql-cntrb"><small><br><sup>*</sup>Corresponding Author</small></span> -->
+              </div>
+              
+              <div class="column has-text-centered">
+                <div class="publication-links">
+                  
+              <!-- ArXiv abstract Link -->
+              <span class="link-block">
+                <a href="https://arxiv.org/abs/2505.20287" target="_blank"
+                class="external-link ">
+                <span class="icon">
+                  <i class="ai ai-arxiv"></i>
+                </span>
+                <span>arXiv</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="https://arxiv.org/pdf/2505.20287" target="_blank"
+              class="external-link ">
+              <span class="icon">
+                <i class="fas fa-file-pdf"></i>
+              </span>
+              <span>PDF</span>
+              </a>
+            </span>
+
+            <span class="link-block">
+              <a href="https://github.com/HiDream-ai/MotionPro" target="_blank"
+              class="external-link ">
+              <span class="icon"><i class="fab fa-github"></i></span>
+              <span> GitHub</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="https://github.com/HiDream-ai/MotionPro" target="_blank"
+              class="external-link ">
+              <!-- <span class="icon"> <i class="fas fa-database"></i></span> -->
+              <span> 🤗 ReCo-Dataset</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="https://huggingface.co/HiDream-ai/MotionPro/tree/main" target="_blank" >🤗 Models</a>
+            </span>
+
+            <div class="hero-quick-links">
+              <!-- 第一行：四个编辑任务按钮 -->
+              <div class="hero-quick-links-row">
+                <a href="#editing-replace" class="button is-light is-link is-small">
+                  Replacement
+                </a>
+                <a href="#editing-add" class="button is-light is-link is-small">
+                  Addition
+                </a>
+                <a href="#editing-remove" class="button is-light is-link is-small">
+                  Removal
+                </a>
+                <a href="#editing-style" class="button is-light is-link is-small">
+                  Stylization
+                </a>
+              </div>
+
+              <!-- 第二行：单独一颗 ReCo-Data Visualization -->
+              <div class="hero-quick-links-row">
+                <a href="#reco-data-vis" class="button is-light is-link is-small">
+                  ReCo-Data Visualization
+                </a>
+                <a href="#comparison" class="button is-light is-link is-small">
+                  Comparison
+                </a>
+              </div>
+            </div>
+
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Abstract -->
+    <section class="section hero is-light">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered has-text-centered">
+          <div class="column is-four-fifths">
+            <h2 class="title is-4">Abstract</h2>
+            <div class="content has-text-justified is-size-6">
+              <p>
+                The In-context generation paradigm recently has demonstrated strong power in instructional image editing with both data efficiency and synthesis quality.
+                Nevertheless, shaping such in-context learning for instruction-based video editing is not trivial.
+                Without specifying editing regions, the results can suffer from the problem of inaccurate editing regions and the token interference between editing and non-editing areas during denoising. 
+                To address these, we present ReCo, a new instructional video editing paradigm that novelly delves into constraint modeling between editing and non-editing regions during in-context generation.
+                Technically, ReCo width-wise concatenates source and target video for joint denoising.
+                To calibrate video diffusion learning, ReCo capitalizes on two regularization terms, i.e., latent and attention regularization, conducting on one-step backward denoised latents and attention maps, respectively.
+                The former increases the latent discrepancy of the editing region between source and target videos while reducing that of non-editing areas, emphasizing the modification on editing area and alleviating outside unexpected content generation.  
+                The latter suppresses the attention of tokens in the editing region to the tokens in counterpart of the source video, thereby mitigating their interference during novel object generation in target video.
+                Furthermore, we propose a large-scale, high-quality video editing dataset, i.e., ReCo-Data, comprising 500K instruction-video pairs to benefit model training.
+                Extensive experiments conducted on four major instruction-based video editing tasks demonstrate the superiority of our proposal.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  <!-- Editing examples 1 -->
+  <section class="section reco-video-section" id="editing-replace">
+    <div class="reco-wide-container">
+      <h2 class="title is-3 has-text-centered">Examples 1: Replacement</h2>
+      <p class="subtitle is-6 has-text-centered">
+        Here we demonstrate our model's capability in content replacement. ReCo can replace objects in the original video with new ones, achieving natural and seamless compositing.
+      </p>
+
+      <div class="reco-video-wall">
+        <!-- ========== 1 ~ 6（默认显示） ========== -->
+        <div class="reco-example">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_000_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_000_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the man with a cartoon penguin. </p>
+        </div>
+
+        <div class="reco-example">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_007_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_007_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong>Replace the woman with a white swan head looking sideways.</p>
+        </div>
+
+        <div class="reco-example">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_016_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_016_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the black beanie with a big fluffy white fur hat. </p>
+        </div>
+
+        <div class="reco-example">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_003_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_003_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the boy with a chimpanzee wearing glasses pointing at the board. </p>
+        </div>
+
+        <div class="reco-example">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_004_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_004_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the black robot vehicle with a white Jeep SUV.</p>
+        </div>
+
+        <div class="reco-example">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_015_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_015_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the man's head with a white cartoon mask and a black hat.</p>
+        </div>
+
+        <!-- ========== 7 ~ 16（隐藏，class extra） ========== -->
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_002_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_002_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the woman on the left with a colorful cartoon llama. </p>
+        </div>
+
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_013_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_013_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the woman in the field with a young deer.</p>
+        </div>
+
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_008_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_008_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the red-haired woman with a cartoon gnome wearing a red hat and blue coat.</p>
+        </div>
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_009_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_009_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the girl on the left with a cute white unicorn toy.</p>
+        </div>
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_010_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_010_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the white lamb with a fluffy brown alpaca being petted.</p>
+        </div>
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_011_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_011_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the woman on the left with a brightly colored cartoon unicorn head.</p>
+        </div>
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_012_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_012_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the man in the passenger seat with a large yellow teddy bear.</p>
+        </div>
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_001_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_001_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the woman with a cute cartoon panda holding a clipboard.</p>
+        </div>
+
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_014_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_014_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the brown goat grazing in the field with a white llama.</p>
+        </div>
+
+        <div class="reco-example extra">
+          <div class="reco-video-pair">
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_005_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+            <div class="reco-video-item">
+              <div class="reco-label">Result</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/replace/video_005_edited.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the crystal stone with a round pastry with orange filling.</p>
+        </div>
+      </div> <!-- end .reco-video-wall -->
+
+      <div class="reco-toggle-wrap">
+        <button class="button is-small reco-toggle-button" type="button" data-target="editing-replace">
+          Show more examples
+        </button>
+      </div>
+    </div>
+  </section>
+
+
+    <!-- Editing examples 2 -->
+    <section class="section reco-video-section" id="editing-add">
+      <div class="reco-wide-container">
+        <h2 class="title is-3 has-text-centered">Examples 2: Addition</h2>
+        <p class="subtitle is-6 has-text-centered">
+          Here we demonstrate our model's capability in content addition. Our method can insert various objects into the original video while achieving natural and seamless compositing.
+        </p>
+
+        <div class="reco-video-wall">
+          <!-- 1~6 -->
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_048_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_048_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a sliced cornbread onto the wooden cutting board.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_033_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_033_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a deer crossing the road.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_014_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_014_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a flowers wreath on the man's head</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_035_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_035_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a white cartoon character with big black eyes and rosy cheeks next to the woman.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_047_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_047_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add an otter wearing sunglasses next to the man.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_022_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_022_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a small gray mouse in front of the cat.</p>
+          </div>
+
+          <!-- extra 7~12 -->
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_004_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_004_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a small, golden crown perched on top of the seal's head. </p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_032_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_032_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a large, glowing purple crystal standing on the right of the man.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_046_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_046_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a fierce brown bear standing inside the wooden structure.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_028_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_028_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a green apron worn by the man.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_057_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_057_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a large red mushroom with white spots to the left of the woman.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_010_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/add/video_010_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Add a large black gorilla dancing on the left side.</p>
+          </div>
+        </div>
+
+        <div class="reco-toggle-wrap">
+          <button class="button is-small reco-toggle-button" type="button" data-target="editing-add">
+            Show more examples
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Editing examples 3 -->
+    <section class="section reco-video-section" id="editing-remove">
+      <div class="reco-wide-container">
+        <h2 class="title is-3 has-text-centered">Examples 3: Removal</h2>
+        <p class="subtitle is-6 has-text-centered">
+          Here we demonstrate our model's capability in content removal. Our method can eliminate specific objects from the original video while producing natural and visually coherent results.
+        </p>
+
+        <div class="reco-video-wall">
+          <!-- 1~6 -->
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_013_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_013_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the woman in the white robe on the right.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_024_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_024_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the woman in the dark blue shirt.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_046_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_046_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the helicopter from the background.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_001_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_001_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the seal lying on the sand.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_018_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_018_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the man standing behind the car.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_016_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_016_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the large white cartoon character on the left.</p>
+          </div>
+
+          <!-- extra 7~12 -->
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_058_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_058_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the bird on the trunk. </p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_000_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_000_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the white cockatoo from the branch.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_037_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_037_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the man sitting on the far left.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_031_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_031_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the cartoon penguin from the couch.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_003_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_003_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the woman in the leather jacket.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_007_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/remove/video_007_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Remove the woman with glasses walking on the left.</p>
+          </div>
+        </div>
+
+        <div class="reco-toggle-wrap">
+          <button class="button is-small reco-toggle-button" type="button" data-target="editing-remove">
+            Show more examples
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Editing examples 0 -->
+    <section class="section reco-video-section" id="editing-style">
+      <div class="reco-wide-container">
+        <h2 class="title is-3 has-text-centered">Examples 4: Stylization</h2>
+        <p class="subtitle is-6 has-text-centered">
+          Here we demonstrate our model's capability in video stylization. ReCo can generate vivid results while preserving the spatial structure well.
+        </p>
+
+        <div class="reco-video-wall">
+          <!-- 1~6 显示 -->
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_000_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_000_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a flat vector illustration style.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_001_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_002_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a watercolor painting style.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_003_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_003_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a 3D Chibi style.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_004_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_004_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a 3D animated movie style.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_005_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_005_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a LEGO style.</p>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_006_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_006_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a comic book style.</p>
+          </div>
+
+          <!-- 7~12 额外：复制前六，标记 extra -->
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_007_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_007_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a bright 2D cartoon style.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_008_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_008_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a Japanese anime style.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_009_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_009_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a Paper Cutting style.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_010_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_010_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a Simpsons-esque style.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_011_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_011_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a claymation style.</p>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_012_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/style/video_012_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+            <p class="reco-prompt"><strong>Edited prompt:</strong> Convert the video into a saturated vector art style.</p>
+          </div>
+        </div>
+
+        <div class="reco-toggle-wrap">
+          <button class="button is-small reco-toggle-button" type="button" data-target="editing-style">
+            Show more examples
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ReCo-Data Visualization -->
+    <section class="section reco-video-section" id="reco-data-vis">
+      <div class="reco-wide-container">
+        <h2 class="title is-3 has-text-centered">ReCo-Data Visualization</h2>
+        <p class="subtitle is-6 has-text-centered">
+          We visualize diverse instruction–video pairs from ReCo-Data. Each pair shows the original video (left) and the edited result (right). The editing instruction appears on the result when you hover over it.
+        </p>
+
+        <div class="reco-video-wall">
+          <!-- 1~6 显示 -->
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_038_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Replace the small blonde-haired child wearing a pink top and shorts being held by the man with a yellow and brown stuffed monkey toy wearing a light blue top.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_038_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_062_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Replace the man wearing a dark green puffer jacket and a dark green knitted hat sitting in the grass with a panda mascot wearing a green puffer jacket and a brown knitted hat sitting in the grass.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_062_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_051_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Replace the dark brown acoustic guitar on the left with a brightly lit and patterned acoustic guitar.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_051_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_044_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Replace the white bowl filled with soil on the table with the small green plant in a dark pot.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/replace/video_044_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_032_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Add a smiling woman with long brown hair, wearing a black long-sleeved top, black pants, and a black baseball cap, with her hands clasped, sitting on the left side of the frame.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_032_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_042_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Add a light blue and white robot with a smiling face, blue headphones, and a black lanyard around its neck, holding a red object in its right hand, on the left side of the image.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_042_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7~12 额外：标记 extra，默认隐藏 -->
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_048_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Add a tall, clear crystal sculpture with multiple sharp points and an ornate base on the right side of the image, next to the white door.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_048_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_055_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Add a furry, brown cartoon bear with a yellow snout and a dark blue apron, sitting on the couch.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/add/video_055_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/003_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Remove the animated girl with glowing purple and blue hair.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/003_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/006_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Remove the man wearing a gray shirt on the right.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/006_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/008_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Remove the large beetle-like character with a pink horn.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/008_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/010_ori.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Remove the white device with the blue glowing light.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/remove/010_edited.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/001.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Convert the video into an American Cartoon style.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/video_000.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/004.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Convert the video into a Monet style.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/video_013.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/006.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Convert the video into an Irasutoya style.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/video_021.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+
+          <div class="reco-example extra">
+            <div class="reco-video-pair">
+              <div class="reco-video-item">
+                <div class="reco-label">Input</div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/009.mp4" type="video/mp4">
+                </video>
+              </div>
+              <div class="reco-video-item">
+                <div class="reco-label">Result</div>
+                <div class="reco-prompt-overlay">
+                  Convert the video into a Watercolor Painting style.
+                </div>
+                <video autoplay muted loop playsinline>
+                  <source src="static/videos/dataset/style/video_027.mp4" type="video/mp4">
+                </video>
+              </div>
+            </div>
+          </div>
+        </div> <!-- ✅ 这里关闭 reco-video-wall -->
+
+        <div class="reco-toggle-wrap">
+          <button class="button is-small reco-toggle-button" type="button" data-target="reco-data-vis">
+            show more examples
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Comparison with Previous Methods -->
+    <section class="section reco-video-section comparison-section" id="comparison">
+      <div class="reco-wide-container">
+        <h2 class="title is-3 has-text-centered">Comparison with Previous Methods</h2>
+        <p class="subtitle is-6 has-text-centered comparison-intro">
+          We compare ReCo with previous instruction-based video editing methods across three tasks, and with captioning-based editing pipelines. Hover over edited videos to see the instruction prompt.
+        </p>
+
+        <div class="comparison-table">
+          <!-- ====== 第一部分：三行五列（Addition / Replacement / Stylization） ====== -->
+          <!-- 头部方法名：Lucy 和 Ditto 已经互换 -->
+          <div class="comparison-header-row-5">
+            <div></div> <!-- 左上角占位 -->
+            <div class="comparison-method">Input</div>
+            <div class="comparison-method">InsViE</div>
+            <div class="comparison-method">Lucy Edit</div>
+            <div class="comparison-method">Ditto</div>
+            <div class="comparison-method">ReCo (Ours)</div>
+          </div>
+
+          <!-- Row 1：Addition（原来是 Replacement，已对调） -->
+          <div class="comparison-grid-row-5">
+            <div class="comparison-task">Addition</div>
+
+            <!-- Input -->
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/add_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- InsViE -->
+            <div class="reco-video-item">
+              <div class="reco-label">InsViE</div>
+              <div class="reco-prompt-overlay">
+                Add a small, golden crown perched on top of the seal's head.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/add_insvie.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- Lucy Edit（列顺序已换到 Ditto 前面） -->
+            <div class="reco-video-item">
+              <div class="reco-label">Lucy Edit</div>
+              <div class="reco-prompt-overlay">
+                Add a small, golden crown perched on top of the seal's head.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/add_lucy.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- Ditto -->
+            <div class="reco-video-item">
+              <div class="reco-label">Ditto</div>
+              <div class="reco-prompt-overlay">
+                Add a small, golden crown perched on top of the seal's head.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/add_ditto.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- ReCo -->
+            <div class="reco-video-item">
+              <div class="reco-label">ReCo</div>
+              <div class="reco-prompt-overlay">
+                Add a small, golden crown perched on top of the seal's head.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/add_reco.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+
+          <!-- Row 2：Replacement（原来是 Addition，已对调） -->
+          <div class="comparison-grid-row-5">
+            <div class="comparison-task">Replacement</div>
+
+            <!-- Input -->
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/replace_ori_video.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- InsViE -->
+            <div class="reco-video-item">
+              <div class="reco-label">InsViE</div>
+              <div class="reco-prompt-overlay">
+                Replace the man with a brown chimpanzee wearing a hoodie and typing on the laptop.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/replace_insvie_case2.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- Lucy Edit（在 Ditto 前） -->
+            <div class="reco-video-item">
+              <div class="reco-label">Lucy Edit</div>
+              <div class="reco-prompt-overlay">
+                Replace the man with a brown chimpanzee wearing a hoodie and typing on the laptop.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/replace_lucy_case2.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- Ditto -->
+            <div class="reco-video-item">
+              <div class="reco-label">Ditto</div>
+              <div class="reco-prompt-overlay">
+                Replace the man with a brown chimpanzee wearing a hoodie and typing on the laptop.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/replace_ditto_case2.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- ReCo -->
+            <div class="reco-video-item">
+              <div class="reco-label">ReCo</div>
+              <div class="reco-prompt-overlay">
+                Replace the man with a brown chimpanzee wearing a hoodie and typing on the laptop.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/replace_ours.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+
+          <!-- Row 3：Stylization（方法列同样 Lucy 在 Ditto 前） -->
+          <div class="comparison-grid-row-5">
+            <div class="comparison-task">Stylization</div>
+
+            <!-- Input -->
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/style_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- InsViE -->
+            <div class="reco-video-item">
+              <div class="reco-label">InsViE</div>
+              <div class="reco-prompt-overlay">
+                Convert the video into a Simpsons style.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/style_insvie.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- Lucy Edit -->
+            <div class="reco-video-item">
+              <div class="reco-label">Lucy Edit</div>
+              <div class="reco-prompt-overlay">
+                Convert the video into a Simpsons style.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/style_lucy.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- Ditto -->
+            <div class="reco-video-item">
+              <div class="reco-label">Ditto</div>
+              <div class="reco-prompt-overlay">
+                Convert the video into a Simpsons style.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/style_ditto.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- ReCo -->
+            <div class="reco-video-item">
+              <div class="reco-label">ReCo</div>
+              <div class="reco-prompt-overlay">
+                Convert the video into a Simpsons style.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/style_reco.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+
+          <!-- ====== 第二部分：一行四列（Removal） ====== -->
+
+          <h3 class="subtitle is-6" style="margin-top: 2.5rem; margin-bottom: 1rem;">
+            Comparison of object removal tasks. Hover over edited videos to see the instruction prompt.
+          </h3>
+
+          <!-- 头部方法名：4 个 -->
+          <div class="comparison-header-row-4">
+            <div></div>
+            <div class="comparison-method">Input</div>
+            <div class="comparison-method">InsViE</div>
+            <div class="comparison-method">VACE</div>
+            <div class="comparison-method">ReCo (Ours)</div>
+          </div>
+
+          <!-- Row 4：Removal（4 个视频） -->
+          <div class="comparison-grid-row-4">
+            <div class="comparison-task">Removal</div>
+
+            <!-- Input -->
+            <div class="reco-video-item">
+              <div class="reco-label">Input</div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/remove_ori.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- InsViE -->
+            <div class="reco-video-item">
+              <div class="reco-label">InsViE</div>
+              <div class="reco-prompt-overlay">
+                Remove the woman with glasses on the left.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/remove_insvie.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- VACE -->
+            <div class="reco-video-item">
+              <div class="reco-label">VACE</div>
+              <div class="reco-prompt-overlay">
+                Remove the woman with glasses on the left.
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/remove_vace.mp4" type="video/mp4">
+              </video>
+            </div>
+
+            <!-- ReCo -->
+            <div class="reco-video-item">
+              <div class="reco-label">ReCo</div>
+              <div class="reco-prompt-overlay">
+                Remove the woman with glasses on the left. 
+              </div>
+              <video autoplay muted loop playsinline>
+                <source src="static/videos/comparison/remove_reco.mp4" type="video/mp4">
+              </video>
+            </div>
+          </div>
+        </div> <!-- end .comparison-table -->
+      </div>
+    </section>
+
+
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="columns is-centered">
+        <div class="column is-8">
+          <div class="content">
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 展开/收起脚本 -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.reco-toggle-wrap button[data-target]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var targetId = this.getAttribute('data-target');
+          var section = document.getElementById(targetId);
+          if (!section) return;
+
+          section.classList.toggle('is-expanded');
+
+          if (section.classList.contains('is-expanded')) {
+            this.textContent = 'hide';
+          } else {
+            this.textContent = 'show more examples';
+          }
+        });
+      });
+    });
+    
+  </script>
+
+
+</body>
+</html>
