@@ -376,6 +376,62 @@
       color: #ffffff !important;
     }
 
+  /* =========================================
+       新增：数据集图表展示区域样式
+       ========================================= */
+    .reco-figure-container {
+      margin-bottom: 3rem;
+      text-align: center;
+    }
+
+    /* 每一组图表的标题 */
+    .reco-figure-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #363636;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* 图片容器：增加圆角和轻微阴影 */
+    .reco-figure-img-wrapper {
+      background: white;
+      padding: 10px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      display: inline-block; /* 让容器适应图片宽度 */
+      max-width: 100%;
+    }
+
+    .reco-figure-img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 6px;
+    }
+
+    .reco-figure-caption {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #666;
+      font-style: italic;
+    }
+
+    /* 专门用于并排显示两张图的布局 (比如 Statistics 和 Motion conditions) */
+    .reco-dual-figures {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .reco-dual-figures {
+        grid-template-columns: 1fr; /* 手机端变为单列 */
+      }
+    }
+
   </style>
 
   <!-- Non-critical CSS - Load asynchronously -->
@@ -1632,8 +1688,72 @@
     <section class="section reco-video-section" id="reco-data-vis">
       <div class="reco-wide-container">
         <h2 class="title is-3 has-text-centered">ReCo-Data Visualization</h2>
+
+      <div class="container is-max-desktop">
+        <div class="content has-text-centered" style="margin-bottom: 3rem;">
+          <p class="subtitle is-6">
+            ReCo-Data is a large-scale, high-quality video editing dataset comprising <strong>500K instruction-video pairs</strong>.
+            Below we present the statistics and the collection pipeline.
+          </p>
+        </div>
+      </div>
+
+        <div class="container is-max-desktop">
+          
+          <div class="reco-figure-container">
+            <h3 class="reco-figure-title">Statistics</h3>
+            <div class="reco-figure-img-wrapper">
+              <img src="static/images/statistic.png" class="reco-figure-img" alt="Statistics of OpenHumanVid">
+            </div>
+            <p class="reco-figure-caption">
+              Figure (a) Overview of scale. (b) Task distribution showing balanced quantities: <br>
+              Replace (116.8K), Add (115.2K), Style (113.1K), and Remove (112.5K). 
+              (c) Details of video informations.
+            </p>
+          </div>
+          
+          <div class="reco-figure-container">
+            <h3 class="reco-figure-title">Collection Pipeline</h3>
+            <div class="reco-figure-img-wrapper">
+              <img src="static/images/data_pipeline.png" class="reco-figure-img" alt="Collection Pipeline">
+            </div>
+            
+            <div class="content has-text-justified" style="margin-top: 1rem; font-size: 0.95rem;">
+              <p>
+                Our data collection pipeline consists of six primary stages:
+              </p>
+              <ul style="list-style-type: disc; margin-left: 1.5rem;">
+                <li>
+                  <strong>(1) Raw data pre-processing:</strong> Filtering raw video data based on specific quality criteria.
+                </li>
+                <li>
+                  <strong>(2) Object segmentation:</strong> Extracting object masks from videos.
+                </li>
+                <li>
+                  <strong>(3) Instruction generation:</strong> Employing VLLM (i.e., Gemini-1.5-Flash) to construct editing prompts.
+                </li>
+                <li>
+                  <strong>(4) Condition pair construction:</strong> Involving first frame editing and depth map generation to prepare the input conditions for VACE.
+                </li>
+                <li>
+                  <strong>(5) Video synthesis:</strong> Employing VACE to generate videos based on conditions.
+                </li>
+                <li>
+                  <strong>(6) Video filtering and re-captioning:</strong> Leveraging VLLM (i.e., Gemini-1.5-Flash) again to filter out low-quality samples and re-caption the remaining videos.
+                </li>
+              </ul>
+            <p>
+              The data synthesis process required approximately <strong>52,000 GPU hours</strong> on NVIDIA RTX 4090s, while the captioning phase incurred a total cost of about <strong>$8,500</strong>. For detailed specifications and configurations of each task, please refer to our 
+              <a href="https://huggingface.co/HiDream-ai/MotionPro/tree/main" target="_blank" style="color: #2563eb; text-decoration: underline;">ReCo-Dataset Card</a>.
+            </p>
+
+            </div>
+          </div>
+        </div>
+
         <p class="subtitle is-6 has-text-centered">
-          We visualize diverse instruction–video pairs from ReCo-Data. Each pair shows the original video (left) and the edited result (right). The editing instruction appears on the result when you hover over it.
+          We visualize diverse instruction–video pairs from ReCo-Data. Each pair shows the original video (left) and the edited result (right). 
+          <span style="color: red; font-weight: bold;">The editing instruction appears on the result when you hover over it.</span>
         </p>
 
         <div class="reco-video-wall">
@@ -1641,13 +1761,13 @@
           <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/replace/video_038_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Replace the small blonde-haired child wearing a pink top and shorts being held by the man with a yellow and brown stuffed monkey toy wearing a light blue top.
                 </div>
@@ -1661,13 +1781,13 @@
           <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/replace/video_062_edited.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Replace the man wearing a dark green puffer jacket and a dark green knitted hat sitting in the grass with a panda mascot wearing a green puffer jacket and a brown knitted hat sitting in the grass.
                 </div>
@@ -1681,13 +1801,13 @@
           <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/replace/video_051_edited.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Replace the dark brown acoustic guitar on the left with a brightly lit and patterned acoustic guitar.
                 </div>
@@ -1701,13 +1821,13 @@
           <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/replace/video_044_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Replace the white bowl filled with soil on the table with the small green plant in a dark pot.
                 </div>
@@ -1721,13 +1841,13 @@
           <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/add/video_032_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Add a smiling woman with long brown hair, wearing a black long-sleeved top, black pants, and a black baseball cap, with her hands clasped, sitting on the left side of the frame.
                 </div>
@@ -1741,13 +1861,13 @@
           <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/add/video_042_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Add a light blue and white robot with a smiling face, blue headphones, and a black lanyard around its neck, holding a red object in its right hand, on the left side of the image.
                 </div>
@@ -1758,17 +1878,16 @@
             </div>
           </div>
 
-          <!-- 7~12 额外：标记 extra，默认隐藏 -->
-          <div class="reco-example extra">
+          <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/add/video_048_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Add a tall, clear crystal sculpture with multiple sharp points and an ornate base on the right side of the image, next to the white door.
                 </div>
@@ -1779,16 +1898,16 @@
             </div>
           </div>
 
-          <div class="reco-example extra">
+          <div class="reco-example">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/add/video_055_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Add a furry, brown cartoon bear with a yellow snout and a dark blue apron, sitting on the couch.
                 </div>
@@ -1799,16 +1918,17 @@
             </div>
           </div>
 
-          <div class="reco-example">
+          <!-- 7~12 额外：标记 extra，默认隐藏 -->
+          <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/remove/003_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Remove the animated girl with glowing purple and blue hair.
                 </div>
@@ -1819,16 +1939,16 @@
             </div>
           </div>
 
-          <div class="reco-example">
+          <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/remove/006_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Remove the man wearing a gray shirt on the right.
                 </div>
@@ -1842,13 +1962,13 @@
           <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/remove/008_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Remove the large beetle-like character with a pink horn.
                 </div>
@@ -1862,13 +1982,13 @@
           <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/remove/010_ori.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Remove the white device with the blue glowing light.
                 </div>
@@ -1883,13 +2003,13 @@
           <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/style/001.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Convert the video into an American Cartoon style.
                 </div>
@@ -1903,13 +2023,13 @@
           <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/style/004.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Convert the video into a Monet style.
                 </div>
@@ -1923,13 +2043,13 @@
           <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/style/006.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Convert the video into an Irasutoya style.
                 </div>
@@ -1943,13 +2063,13 @@
           <div class="reco-example extra">
             <div class="reco-video-pair">
               <div class="reco-video-item">
-                <div class="reco-label">Input</div>
+                <div class="reco-label">Source</div>
                 <video autoplay muted loop playsinline>
                   <source src="static/videos/dataset/style/009.mp4" type="video/mp4">
                 </video>
               </div>
               <div class="reco-video-item">
-                <div class="reco-label">Result</div>
+                <div class="reco-label">Target</div>
                 <div class="reco-prompt-overlay">
                   Convert the video into a Watercolor Painting style.
                 </div>
