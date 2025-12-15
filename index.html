@@ -432,6 +432,16 @@
       }
     }
 
+  /* 简单版本：只移除焦点边框 */
+  a:focus,
+  a:active,
+  button:focus,
+  button:active {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
   </style>
 
   <!-- Non-critical CSS - Load asynchronously -->
@@ -594,10 +604,10 @@
               </a>
             </span>
             <span class="link-block">
-              <a href="https://github.com/HiDream-ai/MotionPro" target="_blank"
+              <a href="https://huggingface.co/datasets/HiDream-ai/ReCo-Data" target="_blank"
               class="external-link ">
               <!-- <span class="icon"> <i class="fas fa-database"></i></span> -->
-              <span> 🤗 ReCo-Dataset</span>
+              <span> 🤗 ReCo-Data</span>
               </a>
             </span>
             <span class="link-block">
@@ -854,7 +864,7 @@
               </video>
             </div>
           </div>
-          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the girl on the left with a cute white unicorn toy.</p>
+          <p class="reco-prompt"><strong>Edited prompt:</strong> Replace the girl on the right with a cute white unicorn toy.</p>
         </div>
 
         <div class="reco-example extra">
@@ -1692,7 +1702,7 @@
       <div class="container is-max-desktop">
         <div class="content has-text-centered" style="margin-bottom: 3rem;">
           <p class="subtitle is-6">
-            ReCo-Data is a large-scale, high-quality video editing dataset comprising <strong>500K instruction-video pairs</strong>.
+            ReCo-Data is a large-scale, high-quality video editing dataset comprising <strong>500K+ instruction-video pairs</strong>.
             Below we present the statistics and the collection pipeline.
           </p>
         </div>
@@ -1707,7 +1717,7 @@
             </div>
             <p class="reco-figure-caption">
               Figure (a) Overview of scale. (b) Task distribution showing balanced quantities: <br>
-              Replace (116.8K), Add (115.2K), Style (113.1K), and Remove (112.5K). 
+              Replace (156.6K), Style (130.6K), Remove (121.6K), and Add (115.6K). The proportion of high-quality data in ReCo-Data for <br> each task exceeds 90%, as evaluated by VLM (e.g., Gemini‑2.5‑Flash‑Thinking).
               (c) Details of video informations.
             </p>
           </div>
@@ -1730,7 +1740,7 @@
                   <strong>(2) Object segmentation:</strong> Extracting object masks from videos.
                 </li>
                 <li>
-                  <strong>(3) Instruction generation:</strong> Employing VLLM (i.e., Gemini-1.5-Flash) to construct editing prompts.
+                  <strong>(3) Instruction generation:</strong> Employing VLLM (i.e., Gemini-2.5-Flash-Thinking) to construct editing prompts.
                 </li>
                 <li>
                   <strong>(4) Condition pair construction:</strong> Involving first frame editing and depth map generation to prepare the input conditions for VACE.
@@ -1739,12 +1749,12 @@
                   <strong>(5) Video synthesis:</strong> Employing VACE to generate videos based on conditions.
                 </li>
                 <li>
-                  <strong>(6) Video filtering and re-captioning:</strong> Leveraging VLLM (i.e., Gemini-1.5-Flash) again to filter out low-quality samples and re-caption the remaining videos.
+                  <strong>(6) Video filtering and re-captioning:</strong> Leveraging VLLM (i.e., Gemini-2.5-Flash-Thinking) again to filter out low-quality samples and re-caption the remaining videos.
                 </li>
               </ul>
             <p>
-              The data synthesis process required approximately <strong>52,000 GPU hours</strong> on NVIDIA RTX 4090s, while the captioning phase incurred a total cost of about <strong>$8,500</strong>. For detailed specifications and configurations of each task, please refer to our 
-              <a href="https://huggingface.co/HiDream-ai/MotionPro/tree/main" target="_blank" style="color: #2563eb; text-decoration: underline;">ReCo-Dataset Card</a>.
+              The data synthesis process required approximately <strong>76,800 GPU hours</strong> on NVIDIA RTX 4090, while the VLLM (i.e., Gemini-2.5-Flash-Thinking) operations incurred a total cost of approximately <strong>$13,600</strong>. For complete technical specifications, task configurations, and implementation details, please refer to our supplementary materials and the
+              <a href="https://huggingface.co/datasets/HiDream-ai/ReCo-Data" target="_blank" style="color: #2563eb; text-decoration: underline;">ReCo-Data Details Card</a>.
             </p>
 
             </div>
@@ -1752,8 +1762,8 @@
         </div>
 
         <p class="subtitle is-6 has-text-centered">
-          We visualize diverse instruction–video pairs from ReCo-Data. Each pair shows the original video (left) and the edited result (right). 
-          <span style="color: red; font-weight: bold;">The editing instruction appears on the result when you hover over it.</span>
+          We visualize diverse instruction–video pairs from ReCo-Data. Each pair shows the source (left) and target video (right). 
+          <span style="color: red; font-weight: bold;">The editing instruction appears on the Target when you hover over it.</span>
         </p>
 
         <div class="reco-video-wall">
@@ -2094,7 +2104,7 @@
       <div class="reco-wide-container">
         <h2 class="title is-3 has-text-centered">Comparison with Previous Methods</h2>
         <p class="subtitle is-6 has-text-centered comparison-intro">
-          We compare ReCo with previous instruction-based video editing methods across three tasks, and with captioning-based editing pipelines. Hover over edited videos to see the instruction prompt.
+          We compare ReCo with previous instruction-based video editing methods across three tasks, and with captioning-based editing pipelines.<span style="color: red; font-weight: bold;">Hover over edited videos to see the instruction prompt.</span>
         </p>
 
         <div class="comparison-table">
@@ -2283,7 +2293,7 @@
           <!-- ====== 第二部分：一行四列（Removal） ====== -->
 
           <h3 class="subtitle is-6" style="margin-top: 2.5rem; margin-bottom: 1rem;">
-            Comparison of object removal tasks. Hover over edited videos to see the instruction prompt.
+            Comparison of object removal tasks. <span style="color: red; font-weight: bold;">Hover over edited videos to see the instruction prompt.</span>
           </h3>
 
           <!-- 头部方法名：4 个 -->
